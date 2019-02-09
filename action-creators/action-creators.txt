@@ -1,0 +1,62 @@
+import {Action} from "redux";
+
+export type ActionWithPayload<T, P> = Action<T> & P;
+
+export type EmptyActionCreator<T extends string> = {
+    (): Action<T>,
+    type: T,
+    withPayload: <P extends object>() => ActionCreator<T, P>,
+    map: <A extends any[], P1 extends object>(f: (...args: A) => P1) => MappedActionCreator<T, A, P1>
+};
+
+export type ActionCreator<T extends string, P extends object> = {
+    (p: P): ActionWithPayload<T, P>,
+    type: T,
+    withPayload: <P1 extends object>() => ActionCreator<T, P & P1>,
+    map: <A extends any[], P1 extends object>(f: (...args: A) => P1) => MappedActionCreator<T, A, P & P1>
+};
+
+export type MappedActionCreator<T extends string, A extends any[], P extends object> = {
+    (...args: A): ActionWithPayload<T, P>,
+    type: T,
+}
+
+export function action<T extends string>(type: T): EmptyActionCreator<T> {
+    return Object.assign(
+        () => ({type}),
+        {type},
+        {withPayload: <P extends object>() => actionWithPayload<T, P>(type)},
+        {map: <A extends any[], P1 extends object>(f: (...args: A) => P1) => argsAction(type, f)}
+    )
+}
+
+export function actionWithPayload<T extends string, P extends object>(type: T): ActionCreator<T, P> {
+    return Object.assign(
+        (p: P) => ({type, ...p}),
+        {type},
+        {withPayload: <P1 extends object>() => actionWithPayload<T, P & P1>(type)},
+        {map: <A extends any[], P1 extends object>(f: (...args: A) => P & P1) => argsAction(type, f)}
+    )
+}
+
+export function argsAction<T extends string, A extends any[], P extends object>(type: T, f: (...args: A) => P): MappedActionCreator<T, A, P> {
+    return Object.assign(
+        (...args: A) => ({type, ...f(...args)}),
+        {type},
+    )
+}
+
+export function errorAction<T extends string>(type: T): ActionCreator<T, { error: any }> {
+    return actionWithPayload<T, { error: any }>(type)
+}
+
+export type ActionCreatorMap<T> = { [K in keyof T]: ActionType<T[K]> };
+
+export type ActionType<ActionCreatorOrMap> =
+    ActionCreatorOrMap extends (...args: any[]) => Action
+        ? ReturnType<ActionCreatorOrMap>
+        : ActionCreatorOrMap extends any[]
+        ? ActionCreatorMap<ActionCreatorOrMap>[number]
+        : ActionCreatorOrMap extends object
+            ? ActionCreatorMap<ActionCreatorOrMap>[keyof ActionCreatorOrMap]
+            : never;
